@@ -7,7 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import beangulp
-from beangulp import Ingest
+from beangulp import Ingest, extract, similar
 from beangulp.testing import main as test_main
 from beancount.core import data
 from beancount.core.amount import Amount
@@ -47,6 +47,9 @@ class DnbMastercardConfig:
         default_account: Account for unmatched transactions.
         skip_balance_forward: When True, skip "Skyldig beløp fra forrige faktura" entries.
         skip_payments: When True, skip "Innbetaling" entries.
+        dedup_window_days: Days to look back for duplicates.
+        dedup_max_date_delta: Max days difference for duplicate detection.
+        dedup_epsilon: Tolerance for amount differences in duplicates.
     """
 
     account_name: str
@@ -56,6 +59,9 @@ class DnbMastercardConfig:
     default_split_percentage: int | float | None = None
     skip_balance_forward: bool = True
     skip_payments: bool = False
+    dedup_window_days: int = 3
+    dedup_max_date_delta: int = 2
+    dedup_epsilon: Decimal = Decimal("0.05")
 
 
 def _parse_norwegian_number(value) -> Decimal | None:
@@ -136,6 +142,9 @@ class Importer(ClassifierMixin, beangulp.Importer):
         )
         self.skip_balance_forward = config.skip_balance_forward
         self.skip_payments = config.skip_payments
+        self.dedup_window = datetime.timedelta(days=config.dedup_window_days)
+        self.dedup_max_date_delta = datetime.timedelta(days=config.dedup_max_date_delta)
+        self.dedup_epsilon = config.dedup_epsilon
         self.flag = flag
         self.debug = debug
 
@@ -148,8 +157,13 @@ class Importer(ClassifierMixin, beangulp.Importer):
             ws = wb.active
             result.sheet_name = ws.title
 
+            max_row = ws.max_row or 0
+            if max_row < 2:
+                wb.close()
+                return result
+
             # Skip header row, process data rows
-            for row_num in range(2, ws.max_row + 1):
+            for row_num in range(2, max_row + 1):
                 date_val = ws.cell(row=row_num, column=1).value
                 description = ws.cell(row=row_num, column=2).value
                 valuta = ws.cell(row=row_num, column=3).value
@@ -224,7 +238,7 @@ class Importer(ClassifierMixin, beangulp.Importer):
 
         Args:
             filepath: Path to the Excel file
-            existing_entries: Existing directives from the ledger (unused for now)
+            existing_entries: Existing directives from the ledger, used for deduplication
 
         Returns:
             List of extracted Beancount Transaction directives
@@ -312,7 +326,20 @@ class Importer(ClassifierMixin, beangulp.Importer):
                     print(f"Error processing transaction {idx}: {e}\n{traceback.format_exc()}")
                 continue
 
+        if existing_entries:
+            self.deduplicate(entries, existing_entries)
+
         return entries
+
+    def deduplicate(
+        self, entries: list[data.Directive], existing: list[data.Directive]
+    ) -> None:
+        """Mark duplicate entries based on configurable parameters."""
+        comparator = similar.heuristic_comparator(
+            max_date_delta=self.dedup_max_date_delta,
+            epsilon=self.dedup_epsilon,
+        )
+        extract.mark_duplicate_entries(entries, existing, self.dedup_window, comparator)
 
 
 def get_importers() -> list[beangulp.Importer]:
