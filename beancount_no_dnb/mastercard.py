@@ -1,6 +1,7 @@
 """DNB Mastercard Excel importer for Beancount."""
 
 import datetime
+import sys
 import traceback
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -194,7 +195,10 @@ class Importer(ClassifierMixin, beangulp.Importer):
 
         except Exception as e:
             if self.debug:
-                print(f"Error parsing Excel file: {traceback.format_exc()}")
+                print(
+                    f"Error parsing Excel file: {traceback.format_exc()}",
+                    file=sys.stderr,
+                )
             return ExcelFileData()
 
     def identify(self, filepath: str) -> bool:
@@ -244,7 +248,7 @@ class Importer(ClassifierMixin, beangulp.Importer):
         excel_data = self._parse_excel_file(filepath)
         if not excel_data.transactions:
             if self.debug:
-                print(f"No transactions found in {filepath}")
+                print(f"No transactions found in {filepath}", file=sys.stderr)
             return []
 
         # Process each transaction
@@ -253,20 +257,29 @@ class Importer(ClassifierMixin, beangulp.Importer):
                 # Skip transactions without date
                 if raw_txn.date is None:
                     if self.debug:
-                        print(f"Skipping transaction {idx}: missing date")
+                        print(
+                            f"Skipping transaction {idx}: missing date",
+                            file=sys.stderr,
+                        )
                     continue
 
                 # Skip balance forward entries if configured
                 description = raw_txn.description or ""
                 if self.skip_balance_forward and description == BALANCE_FORWARD_DESCRIPTION:
                     if self.debug:
-                        print(f"Skipping balance forward entry at row {idx}")
+                        print(
+                            f"Skipping balance forward entry at row {idx}",
+                            file=sys.stderr,
+                        )
                     continue
 
                 # Skip payment entries if configured
                 if self.skip_payments and description == PAYMENT_DESCRIPTION:
                     if self.debug:
-                        print(f"Skipping payment entry at row {idx}")
+                        print(
+                            f"Skipping payment entry at row {idx}",
+                            file=sys.stderr,
+                        )
                     continue
 
                 # Calculate amount: credits are positive (Inn), debits are negative (Ut)
@@ -276,7 +289,10 @@ class Importer(ClassifierMixin, beangulp.Importer):
                     amount_decimal = -raw_txn.debit
                 else:
                     if self.debug:
-                        print(f"Skipping transaction {idx}: no amount")
+                        print(
+                            f"Skipping transaction {idx}: no amount",
+                            file=sys.stderr,
+                        )
                     continue
 
                 # Create metadata
@@ -311,14 +327,20 @@ class Importer(ClassifierMixin, beangulp.Importer):
 
                 if finalized_txn is None:
                     if self.debug:
-                        print(f"Skipping transaction {idx} after finalization")
+                        print(
+                            f"Skipping transaction {idx} after finalization",
+                            file=sys.stderr,
+                        )
                     continue
 
                 entries.append(finalized_txn)
 
             except Exception as e:
                 if self.debug:
-                    print(f"Error processing transaction {idx}: {e}\n{traceback.format_exc()}")
+                    print(
+                        f"Error processing transaction {idx}: {e}\n{traceback.format_exc()}",
+                        file=sys.stderr,
+                    )
                 continue
 
         if existing_entries:
