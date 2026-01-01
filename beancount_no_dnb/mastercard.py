@@ -157,19 +157,14 @@ class Importer(ClassifierMixin, beangulp.Importer):
             ws = wb.active
             result.sheet_name = ws.title
 
-            max_row = ws.max_row or 0
-            if max_row < 2:
-                wb.close()
-                return result
-
             # Skip header row, process data rows
-            for row_num in range(2, max_row + 1):
-                date_val = ws.cell(row=row_num, column=1).value
-                description = ws.cell(row=row_num, column=2).value
-                valuta = ws.cell(row=row_num, column=3).value
-                kurs = ws.cell(row=row_num, column=4).value
-                inn = ws.cell(row=row_num, column=5).value
-                ut = ws.cell(row=row_num, column=6).value
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                date_val = row[0] if len(row) > 0 else None
+                description = row[1] if len(row) > 1 else None
+                valuta = row[2] if len(row) > 2 else None
+                kurs = row[3] if len(row) > 3 else None
+                inn = row[4] if len(row) > 4 else None
+                ut = row[5] if len(row) > 5 else None
 
                 # Skip empty rows
                 if date_val is None and description is None:
