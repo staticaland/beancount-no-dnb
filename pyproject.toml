@@ -1,0 +1,50 @@
+[project]
+name = "beancount-no-dnb"
+version = "0.1.0"
+description = "A library that converts transaction data from DNB Mastercard statements in Norway into structured Beancount accounting format."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "beancount>=3.1.0",
+    "beancount-classifier",
+    "beangulp>=0.2.0",
+    "openpyxl>=3.1.5",
+    "pydantic>=2.10.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["beancount_no_dnb"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["beancount_no_dnb"]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+beancount-classifier = { git = "https://github.com/staticaland/beancount-classifier" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+
+[project.scripts]
+beancount-no-dnb = "beancount_no_dnb.mastercard:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v"
