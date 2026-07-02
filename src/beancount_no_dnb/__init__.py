@@ -1,13 +1,5 @@
-from .mastercard import DnbMastercardConfig, Importer
-
 # Classification components (re-exported from beancount-classifier)
 from beancount_classifier import (
-    # Fluent API
-    match,
-    when,
-    field,
-    shared,
-    amount,
     # Core classes
     AccountSplit,
     AmountCondition,
@@ -17,7 +9,15 @@ from beancount_classifier import (
     SharedExpense,
     TransactionClassifier,
     TransactionPattern,
+    amount,
+    field,
+    # Fluent API
+    match,
+    shared,
+    when,
 )
+
+from .mastercard import DnbMastercardConfig, Importer
 
 # Data models
 from .models import (

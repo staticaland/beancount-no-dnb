@@ -5,16 +5,13 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from beancount_classifier import TransactionPattern
 from openpyxl import Workbook
 
 from beancount_no_dnb.mastercard import DnbMastercardConfig, Importer
-from beancount_classifier import TransactionPattern, amount
 from beancount_no_dnb.models import (
-    ExcelFileData,
-    ParsedTransaction,
     RawTransaction,
 )
-
 
 # =============================================================================
 # Path Fixtures

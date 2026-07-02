@@ -10,20 +10,18 @@ from decimal import Decimal
 from pathlib import Path
 
 import beangulp
-from beangulp import extract, similar
 from beancount.core import data
 from beancount.core.amount import Amount
 from beancount.core.number import D
-from openpyxl import load_workbook
-
 from beancount_classifier import (
-    AccountSplit,
     ClassifierMixin,
     TransactionPattern,
 )
+from beangulp import extract, similar
+from openpyxl import load_workbook
+
 from beancount_no_dnb.models import (
     ExcelFileData,
-    ParsedTransaction,
     RawTransaction,
 )
 
@@ -236,7 +234,7 @@ class Importer(ClassifierMixin, beangulp.Importer):
             wb.close()
             return result
 
-        except Exception as e:
+        except Exception:
             if self.debug:
                 print(
                     f"Error parsing Excel file: {traceback.format_exc()}",

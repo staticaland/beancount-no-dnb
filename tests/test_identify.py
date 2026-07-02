@@ -6,9 +6,7 @@ It checks:
 2. Excel headers match expected DNB format
 """
 
-from pathlib import Path
 
-import pytest
 from openpyxl import Workbook
 
 from beancount_no_dnb.mastercard import DnbMastercardConfig, Importer

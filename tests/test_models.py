@@ -3,8 +3,6 @@
 import datetime
 from decimal import Decimal
 
-import pytest
-
 from beancount_no_dnb.models import (
     ExcelFileData,
     ParsedTransaction,
