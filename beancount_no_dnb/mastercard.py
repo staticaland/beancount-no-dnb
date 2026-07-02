@@ -10,8 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import beangulp
-from beangulp import Ingest, extract, similar
-from beangulp.testing import main as test_main
+from beangulp import extract, similar
 from beancount.core import data
 from beancount.core.amount import Amount
 from beancount.core.number import D
@@ -36,6 +35,8 @@ DEFAULT_CURRENCY = "NOK"
 # derives one from the row content. Downstream tools (e.g. split preservation
 # in a ledger project) match re-imported transactions by this key.
 IMPORT_FINGERPRINT_META_KEY = "import_fingerprint"
+FOREIGN_CURRENCY_META_KEY = "foreign_currency"
+EXCHANGE_RATE_META_KEY = "exchange_rate"
 
 # Known description patterns
 PAYMENT_DESCRIPTION = "Innbetaling"
@@ -349,6 +350,13 @@ class Importer(ClassifierMixin, beangulp.Importer):
                 else:
                     metadata["type"] = "DEBIT"
 
+                # Preserve foreign-currency statement data without changing
+                # the authoritative NOK posting amount.
+                if raw_txn.foreign_currency is not None:
+                    metadata[FOREIGN_CURRENCY_META_KEY] = raw_txn.foreign_currency
+                if raw_txn.exchange_rate is not None:
+                    metadata[EXCHANGE_RATE_META_KEY] = raw_txn.exchange_rate
+
                 # Add deterministic identity for re-import matching
                 base = _fingerprint_base(raw_txn)
                 metadata[IMPORT_FINGERPRINT_META_KEY] = _import_fingerprint(
@@ -409,34 +417,3 @@ class Importer(ClassifierMixin, beangulp.Importer):
             epsilon=self.dedup_epsilon,
         )
         extract.mark_duplicate_entries(entries, existing, self.dedup_window, comparator)
-
-
-def get_importers() -> list[beangulp.Importer]:
-    """Create and return a list of configured importers."""
-    return [
-        Importer(
-            DnbMastercardConfig(
-                account_name="Liabilities:CreditCard:DNB",
-                currency="NOK",
-                transaction_patterns=[],
-            )
-        ),
-    ]
-
-
-def main():
-    """Entry point for the command-line interface."""
-    importers = get_importers()
-    ingest = Ingest(importers)
-    ingest.main()
-
-
-def test_main_single():
-    """Alternative entry point for single-importer testing."""
-    importers = get_importers()
-    if importers:
-        test_main(importers[0])
-
-
-if __name__ == "__main__":
-    main()

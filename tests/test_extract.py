@@ -6,10 +6,13 @@ These tests verify the complete data flow:
 
 import datetime
 from decimal import Decimal
+from io import StringIO
 
 import pytest
 from beancount.core import data
 from beancount.core.number import D
+from beancount.loader import load_string
+from beancount.parser import printer
 from openpyxl import Workbook
 
 from beancount_no_dnb.mastercard import DnbMastercardConfig, Importer
@@ -171,6 +174,131 @@ class TestExtractMetadata:
         txn = transactions[0]
         assert "filename" in txn.meta
 
+    def test_foreign_currency_metadata_is_preserved(self, basic_importer, tmp_path):
+        """Foreign-currency rows retain Valuta and Kurs in metadata."""
+        file_path = _excel_file(
+            tmp_path,
+            [
+                (
+                    datetime.datetime(2025, 10, 24),
+                    "PARIS MERCHANT",
+                    "EUR",
+                    "10,42",
+                    None,
+                    1042.00,
+                ),
+            ],
+        )
+
+        entries = basic_importer.extract(str(file_path), [])
+        transactions = [e for e in entries if isinstance(e, data.Transaction)]
+
+        assert len(transactions) == 1
+        txn = transactions[0]
+        assert txn.meta["foreign_currency"] == "EUR"
+        assert txn.meta["exchange_rate"] == Decimal("10.42")
+        assert txn.postings[0].units.number == D("-1042.00")
+        assert txn.postings[0].units.currency == "NOK"
+
+    def test_foreign_currency_without_rate_is_preserved(self, basic_importer, tmp_path):
+        """Valuta is kept even when DNB omits Kurs."""
+        file_path = _excel_file(
+            tmp_path,
+            [
+                (
+                    datetime.datetime(2025, 10, 24),
+                    "UNKNOWN RATE MERCHANT",
+                    "USD",
+                    None,
+                    None,
+                    199.90,
+                ),
+            ],
+        )
+
+        entries = basic_importer.extract(str(file_path), [])
+        transactions = [e for e in entries if isinstance(e, data.Transaction)]
+
+        assert len(transactions) == 1
+        txn = transactions[0]
+        assert txn.meta["foreign_currency"] == "USD"
+        assert "exchange_rate" not in txn.meta
+
+    def test_non_clean_rate_is_preserved_as_metadata(self, basic_importer, tmp_path):
+        """Rates that do not cleanly divide the NOK amount still retain data."""
+        file_path = _excel_file(
+            tmp_path,
+            [
+                (
+                    datetime.datetime(2025, 10, 24),
+                    "ODD RATE MERCHANT",
+                    "GBP",
+                    "13.37",
+                    None,
+                    100.00,
+                ),
+            ],
+        )
+
+        entries = basic_importer.extract(str(file_path), [])
+        transactions = [e for e in entries if isinstance(e, data.Transaction)]
+
+        assert len(transactions) == 1
+        txn = transactions[0]
+        assert txn.meta["foreign_currency"] == "GBP"
+        assert txn.meta["exchange_rate"] == Decimal("13.37")
+        assert txn.postings[0].units.number == D("-100.00")
+
+    def test_domestic_rows_have_no_foreign_metadata(
+        self, basic_importer, minimal_excel_file
+    ):
+        """Domestic rows are unchanged by the foreign-currency metadata path."""
+        entries = basic_importer.extract(str(minimal_excel_file), [])
+        transactions = [e for e in entries if isinstance(e, data.Transaction)]
+
+        txn = transactions[0]
+        assert "foreign_currency" not in txn.meta
+        assert "exchange_rate" not in txn.meta
+
+    def test_foreign_currency_output_loads_as_beancount(self, tmp_path):
+        """A balanced ledger containing foreign metadata passes Beancount load."""
+        importer = Importer(
+            DnbMastercardConfig(
+                account_name="Liabilities:CreditCard:DNB",
+                currency="NOK",
+                default_account="Expenses:Travel",
+            ),
+            debug=False,
+        )
+        file_path = _excel_file(
+            tmp_path,
+            [
+                (
+                    datetime.datetime(2025, 10, 24),
+                    "PARIS MERCHANT",
+                    "EUR",
+                    "10.42",
+                    None,
+                    1042.00,
+                ),
+            ],
+        )
+
+        entries = importer.extract(str(file_path), [])
+        output = StringIO()
+        printer.print_entries(entries, file=output)
+        ledger = "\n".join(
+            [
+                'option "operating_currency" "NOK"',
+                "2025-01-01 open Liabilities:CreditCard:DNB NOK",
+                "2025-01-01 open Expenses:Travel NOK",
+                output.getvalue(),
+            ]
+        )
+
+        _, errors, _ = load_string(ledger)
+        assert errors == []
+
 
 class TestImportFingerprint:
     """Tests for the deterministic import_fingerprint metadata."""
@@ -316,3 +444,20 @@ class TestDateMethod:
 
         result = basic_importer.date(str(file_path))
         assert result == datetime.date.today()
+
+
+def _excel_file(tmp_path, rows) -> str:
+    """Create a DNB-shaped Excel file with the supplied rows."""
+    wb = Workbook()
+    ws = wb.active
+    headers = ["Dato", "Beløpet gjelder", "Valuta", "Kurs", "Inn", "Ut"]
+    for col, header in enumerate(headers, 1):
+        ws.cell(row=1, column=col, value=header)
+
+    for row_num, row in enumerate(rows, 2):
+        for col, value in enumerate(row, 1):
+            ws.cell(row=row_num, column=col, value=value)
+
+    file_path = tmp_path / "statement.xlsx"
+    wb.save(file_path)
+    return str(file_path)

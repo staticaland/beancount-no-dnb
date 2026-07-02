@@ -165,8 +165,8 @@ The importer expects DNB Mastercard Excel exports with these columns:
 | ------ | --------------- | --------------------------------- |
 | A      | Dato            | Transaction date                  |
 | B      | Beløpet gjelder | Description/payee                 |
-| C      | Valuta          | Foreign currency amount (ignored) |
-| D      | Kurs            | Exchange rate (ignored)           |
+| C      | Valuta          | Foreign currency, emitted as metadata when present |
+| D      | Kurs            | Exchange rate, emitted as metadata when present    |
 | E      | Inn             | Credit/inflow in NOK              |
 | F      | Ut              | Debit/outflow in NOK              |
 
