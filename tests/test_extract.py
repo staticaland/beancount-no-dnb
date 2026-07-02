@@ -172,6 +172,61 @@ class TestExtractMetadata:
         assert "filename" in txn.meta
 
 
+class TestImportFingerprint:
+    """Tests for the deterministic import_fingerprint metadata."""
+
+    def test_every_transaction_has_fingerprint(
+        self, basic_importer, excel_with_all_types
+    ):
+        """All extracted transactions carry an import_fingerprint."""
+        entries = basic_importer.extract(str(excel_with_all_types), [])
+
+        transactions = [e for e in entries if isinstance(e, data.Transaction)]
+        assert transactions
+        for txn in transactions:
+            assert txn.meta.get("import_fingerprint")
+
+    def test_fingerprint_is_stable_across_extracts(
+        self, basic_importer, excel_with_all_types
+    ):
+        """Re-extracting the same file yields identical fingerprints."""
+        first = basic_importer.extract(str(excel_with_all_types), [])
+        second = basic_importer.extract(str(excel_with_all_types), [])
+
+        first_fps = [
+            e.meta["import_fingerprint"]
+            for e in first
+            if isinstance(e, data.Transaction)
+        ]
+        second_fps = [
+            e.meta["import_fingerprint"]
+            for e in second
+            if isinstance(e, data.Transaction)
+        ]
+        assert first_fps == second_fps
+
+    def test_identical_rows_get_distinct_fingerprints(self, basic_importer, tmp_path):
+        """Two identical rows in one file get different fingerprints."""
+        wb = Workbook()
+        ws = wb.active
+        headers = ["Dato", "Beløpet gjelder", "Valuta", "Kurs", "Inn", "Ut"]
+        for col, header in enumerate(headers, 1):
+            ws.cell(row=1, column=col, value=header)
+        for row_num in (2, 3):
+            ws.cell(row=row_num, column=1, value=datetime.datetime(2025, 10, 24))
+            ws.cell(row=row_num, column=2, value="ESPRESSO HOUSE OSLO")
+            ws.cell(row=row_num, column=6, value=49.00)
+        file_path = tmp_path / "duplicates.xlsx"
+        wb.save(file_path)
+
+        entries = basic_importer.extract(str(file_path), [])
+        transactions = [e for e in entries if isinstance(e, data.Transaction)]
+
+        assert len(transactions) == 2
+        fingerprints = {t.meta["import_fingerprint"] for t in transactions}
+        assert len(fingerprints) == 2
+
+
 class TestExtractEdgeCases:
     """Edge cases for extraction."""
 

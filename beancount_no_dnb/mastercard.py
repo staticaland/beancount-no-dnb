@@ -1,8 +1,10 @@
 """DNB Mastercard Excel importer for Beancount."""
 
 import datetime
+import hashlib
 import sys
 import traceback
+from collections import Counter
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -28,6 +30,12 @@ from beancount_no_dnb.models import (
 
 # Constants
 DEFAULT_CURRENCY = "NOK"
+
+# Metadata key for the deterministic transaction identity. DNB Mastercard
+# Excel exports carry no provider-assigned transaction ID, so the importer
+# derives one from the row content. Downstream tools (e.g. split preservation
+# in a ledger project) match re-imported transactions by this key.
+IMPORT_FINGERPRINT_META_KEY = "import_fingerprint"
 
 # Known description patterns
 PAYMENT_DESCRIPTION = "Innbetaling"
@@ -88,6 +96,40 @@ def _parse_norwegian_number(value) -> Decimal | None:
         return Decimal(cleaned)
 
     return Decimal(str(value))
+
+
+def _import_fingerprint(raw_txn: RawTransaction, occurrence: int) -> str:
+    """Compute a deterministic identity for a statement row.
+
+    The fingerprint is derived only from row content, so the same transaction
+    gets the same fingerprint regardless of which export file it appears in
+    (e.g. a monthly export vs. an overlapping date-range export). Identical
+    rows within one file are disambiguated with an occurrence counter, which
+    stays consistent across exports as long as the bank lists transactions in
+    a stable order.
+    """
+    parts = [
+        str(raw_txn.date or ""),
+        raw_txn.description or "",
+        raw_txn.foreign_currency or "",
+        str(raw_txn.exchange_rate or ""),
+        str(raw_txn.credit or ""),
+        str(raw_txn.debit or ""),
+        str(occurrence),
+    ]
+    return hashlib.sha256("\0".join(parts).encode("utf-8")).hexdigest()[:24]
+
+
+def _fingerprint_base(raw_txn: RawTransaction) -> tuple:
+    """Row-content key used to count identical rows within one file."""
+    return (
+        raw_txn.date,
+        raw_txn.description,
+        raw_txn.foreign_currency,
+        raw_txn.exchange_rate,
+        raw_txn.credit,
+        raw_txn.debit,
+    )
 
 
 def _is_dnb_mastercard_file(filepath: str) -> bool:
@@ -251,6 +293,9 @@ class Importer(ClassifierMixin, beangulp.Importer):
                 print(f"No transactions found in {filepath}", file=sys.stderr)
             return []
 
+        # Occurrence counts of identical rows, backing import fingerprints
+        fingerprint_occurrences: Counter = Counter()
+
         # Process each transaction
         for idx, raw_txn in enumerate(excel_data.transactions, 1):
             try:
@@ -303,6 +348,13 @@ class Importer(ClassifierMixin, beangulp.Importer):
                     metadata["type"] = "CREDIT"
                 else:
                     metadata["type"] = "DEBIT"
+
+                # Add deterministic identity for re-import matching
+                base = _fingerprint_base(raw_txn)
+                metadata[IMPORT_FINGERPRINT_META_KEY] = _import_fingerprint(
+                    raw_txn, fingerprint_occurrences[base]
+                )
+                fingerprint_occurrences[base] += 1
 
                 # Create the primary posting
                 amount_obj = Amount(D(str(amount_decimal)), self.currency)
