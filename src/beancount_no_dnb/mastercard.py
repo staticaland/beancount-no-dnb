@@ -52,7 +52,13 @@ class DnbMastercardConfig:
         account_name: The Beancount account name (e.g., 'Liabilities:CreditCard:DNB')
         currency: Default currency for transactions (e.g., 'NOK')
         transaction_patterns: List of TransactionPattern objects for categorization.
-        default_account: Account for unmatched transactions.
+        default_account: Account for unmatched transactions in either direction.
+            Shorthand when one fallback is enough.
+        default_expense_account: Default account for unmatched expenses
+            (amount < 0). Takes precedence over default_account for expenses.
+        default_income_account: Default account for unmatched income
+            (amount > 0, e.g. refunds). Takes precedence over default_account
+            for income.
         skip_balance_forward: When True, skip "Skyldig beløp fra forrige faktura" entries.
         skip_payments: When True, skip "Innbetaling" entries.
         dedup_window_days: Days to look back for duplicates.
@@ -64,6 +70,8 @@ class DnbMastercardConfig:
     currency: str = DEFAULT_CURRENCY
     transaction_patterns: list[TransactionPattern] = field(default_factory=list)
     default_account: str | None = None
+    default_expense_account: str | None = None
+    default_income_account: str | None = None
     default_split_percentage: int | float | None = None
     skip_balance_forward: bool = True
     skip_payments: bool = False
@@ -158,25 +166,30 @@ class Importer(ClassifierMixin, beangulp.Importer):
     """Importer for DNB Mastercard Excel statements.
 
     Inherits transaction classification from ClassifierMixin.
+
+    Note: DNB's Excel export carries no balance information, so unlike the
+    Amex and SpareBank 1 importers this one cannot emit balance assertions.
     """
 
     def __init__(
         self,
         config: DnbMastercardConfig,
         flag: str = "*",
-        debug: bool = True,
+        debug: bool = False,
     ):
         """Initialize the DNB Mastercard Excel importer.
 
         Args:
             config: A DnbMastercardConfig object with account details.
             flag: Transaction flag (default: "*").
-            debug: Enable debug output (default: True).
+            debug: Enable debug output (default: False).
         """
         self.account_name = config.account_name
         self.currency = config.currency
         self.transaction_patterns = config.transaction_patterns
         self.default_account = config.default_account
+        self.default_expense = config.default_expense_account
+        self.default_income = config.default_income_account
         self.default_split_percentage = (
             Decimal(str(config.default_split_percentage))
             if config.default_split_percentage is not None
