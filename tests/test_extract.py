@@ -16,7 +16,7 @@ from beancount.loader import load_string
 from beancount.parser import printer
 from openpyxl import Workbook
 
-from beancount_no_dnb.mastercard import DnbMastercardConfig, Importer
+from beancount_no_dnb.mastercard import Config, Importer
 
 
 def _transaction(fingerprint: str | None, amount: str = "-100.00") -> data.Transaction:
@@ -289,7 +289,7 @@ class TestExtractMetadata:
     def test_foreign_currency_output_loads_as_beancount(self, tmp_path):
         """A balanced ledger containing foreign metadata passes Beancount load."""
         importer = Importer(
-            DnbMastercardConfig(
+            Config(
                 account_name="Liabilities:CreditCard:DNB",
                 currency="NOK",
                 default_account="Expenses:Travel",

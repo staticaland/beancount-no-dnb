@@ -17,7 +17,7 @@ from beancount_classifier import (
     when,
 )
 
-from .mastercard import DnbMastercardConfig, Importer
+from .importer import Config, DnbConfig, DnbMastercardConfig, Importer
 
 # Data models
 from .models import (
@@ -28,6 +28,8 @@ from .models import (
 
 __all__ = [
     # Main importer classes
+    "Config",
+    "DnbConfig",
     "DnbMastercardConfig",
     "Importer",
     # Fluent API

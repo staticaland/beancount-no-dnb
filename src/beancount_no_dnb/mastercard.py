@@ -4,6 +4,7 @@ import datetime
 import hashlib
 import sys
 import traceback
+import warnings
 from collections import Counter
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -52,7 +53,7 @@ def _entry_import_fingerprint(entry: data.Directive) -> str | None:
 
 
 @dataclass
-class DnbMastercardConfig:
+class Config:
     """Configuration for a DNB Mastercard Excel account.
 
     Attributes:
@@ -85,6 +86,21 @@ class DnbMastercardConfig:
     dedup_window_days: int = 3
     dedup_max_date_delta: int = 2
     dedup_epsilon: Decimal = Decimal("0.05")
+
+
+DnbConfig = Config
+
+
+@dataclass
+class DnbMastercardConfig(Config):
+    """Deprecated alias for Config."""
+
+    def __post_init__(self) -> None:
+        warnings.warn(
+            "DnbMastercardConfig is deprecated; use Config or DnbConfig instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
 
 def _parse_norwegian_number(value) -> Decimal | None:
@@ -180,14 +196,14 @@ class Importer(ClassifierMixin, beangulp.Importer):
 
     def __init__(
         self,
-        config: DnbMastercardConfig,
+        config: Config,
         flag: str = "*",
         debug: bool = False,
     ):
         """Initialize the DNB Mastercard Excel importer.
 
         Args:
-            config: A DnbMastercardConfig object with account details.
+            config: A Config object with account details.
             flag: Transaction flag (default: "*").
             debug: Enable debug output (default: False).
         """

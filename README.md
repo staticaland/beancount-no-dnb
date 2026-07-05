@@ -50,12 +50,12 @@ Create `src/finances/importers.py`:
 
 ```python
 from beangulp import Ingest
-from beancount_no_dnb import DnbMastercardConfig, Importer, match, when, amount
+from beancount_no_dnb import Config, Importer, match, when, amount
 
 
 def get_importers():
     return [
-        Importer(DnbMastercardConfig(
+        Importer(Config(
             account_name="Liabilities:CreditCard:DNB",
             currency="NOK",
             transaction_patterns=[
@@ -173,7 +173,7 @@ The importer expects DNB Mastercard Excel exports with these columns:
 ## Configuration Options
 
 ```python
-DnbMastercardConfig(
+Config(
     account_name="Liabilities:CreditCard:DNB",
     currency="NOK",
     transaction_patterns=[...],

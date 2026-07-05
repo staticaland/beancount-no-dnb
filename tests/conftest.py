@@ -8,7 +8,7 @@ import pytest
 from beancount_classifier import TransactionPattern
 from openpyxl import Workbook
 
-from beancount_no_dnb.mastercard import DnbMastercardConfig, Importer
+from beancount_no_dnb.mastercard import Config, Importer
 from beancount_no_dnb.models import (
     RawTransaction,
 )
@@ -80,18 +80,18 @@ def raw_transaction_balance_forward() -> RawTransaction:
 
 
 @pytest.fixture
-def basic_config() -> DnbMastercardConfig:
+def basic_config() -> Config:
     """Basic importer configuration."""
-    return DnbMastercardConfig(
+    return Config(
         account_name="Liabilities:CreditCard:DNB",
         currency="NOK",
     )
 
 
 @pytest.fixture
-def config_with_mappings() -> DnbMastercardConfig:
+def config_with_mappings() -> Config:
     """Configuration with transaction patterns for categorization."""
-    return DnbMastercardConfig(
+    return Config(
         account_name="Liabilities:CreditCard:DNB",
         currency="NOK",
         transaction_patterns=[
@@ -104,9 +104,9 @@ def config_with_mappings() -> DnbMastercardConfig:
 
 
 @pytest.fixture
-def config_include_payments() -> DnbMastercardConfig:
+def config_include_payments() -> Config:
     """Configuration that includes payment entries."""
-    return DnbMastercardConfig(
+    return Config(
         account_name="Liabilities:CreditCard:DNB",
         currency="NOK",
         skip_payments=False,
@@ -115,9 +115,9 @@ def config_include_payments() -> DnbMastercardConfig:
 
 
 @pytest.fixture
-def config_include_all() -> DnbMastercardConfig:
+def config_include_all() -> Config:
     """Configuration that includes all entries."""
-    return DnbMastercardConfig(
+    return Config(
         account_name="Liabilities:CreditCard:DNB",
         currency="NOK",
         skip_payments=False,

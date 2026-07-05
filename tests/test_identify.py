@@ -9,7 +9,7 @@ It checks:
 
 from openpyxl import Workbook
 
-from beancount_no_dnb.mastercard import DnbMastercardConfig, Importer
+from beancount_no_dnb.mastercard import Config, Importer
 
 
 class TestIdentifyBasics:
@@ -92,7 +92,7 @@ class TestAccountMethod:
         ]
 
         for account_name in configs:
-            config = DnbMastercardConfig(
+            config = Config(
                 account_name=account_name,
                 currency="NOK",
             )
