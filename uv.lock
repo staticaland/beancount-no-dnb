@@ -43,11 +43,23 @@ wheels = [
 [[package]]
 name = "beancount-classifier"
 version = "0.1.0"
-source = { git = "https://github.com/staticaland/beancount-classifier?rev=92b285ea2ef31b86c43772b0d1387b9bba5aed8b#92b285ea2ef31b86c43772b0d1387b9bba5aed8b" }
+source = { directory = "../beancount-classifier" }
 dependencies = [
     { name = "beancount" },
     { name = "pydantic" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "beancount", specifier = ">=3.1.0" },
+    { name = "pydantic", specifier = ">=2.10.6" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
+]
+provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.0.2" }]
 
 [[package]]
 name = "beancount-no-dnb"
@@ -71,7 +83,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "beancount", specifier = ">=3.1.0" },
-    { name = "beancount-classifier", git = "https://github.com/staticaland/beancount-classifier?rev=92b285ea2ef31b86c43772b0d1387b9bba5aed8b" },
+    { name = "beancount-classifier", directory = "../beancount-classifier" },
     { name = "beangulp", git = "https://github.com/beancount/beangulp" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pydantic", specifier = ">=2.10.6" },

@@ -1,11 +1,9 @@
 """DNB Mastercard Excel importer for Beancount."""
 
 import datetime
-import hashlib
 import sys
 import traceback
 import warnings
-from collections import Counter
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -15,8 +13,11 @@ from beancount.core import data
 from beancount.core.amount import Amount
 from beancount.core.number import D
 from beancount_classifier import (
+    IMPORT_FINGERPRINT_META_KEY,
     ClassifierMixin,
+    ImportFingerprintTracker,
     TransactionPattern,
+    entry_import_fingerprint,
 )
 from beangulp import extract, similar
 from openpyxl import load_workbook
@@ -29,11 +30,6 @@ from beancount_no_dnb.models import (
 # Constants
 DEFAULT_CURRENCY = "NOK"
 
-# Metadata key for the deterministic transaction identity. DNB Mastercard
-# Excel exports carry no provider-assigned transaction ID, so the importer
-# derives one from the row content. Downstream tools (e.g. split preservation
-# in a ledger project) match re-imported transactions by this key.
-IMPORT_FINGERPRINT_META_KEY = "import_fingerprint"
 FOREIGN_CURRENCY_META_KEY = "foreign_currency"
 EXCHANGE_RATE_META_KEY = "exchange_rate"
 
@@ -43,13 +39,6 @@ BALANCE_FORWARD_DESCRIPTION = "Skyldig beløp fra forrige faktura"
 
 # Expected Excel headers
 EXPECTED_HEADERS = ("Dato", "Beløpet gjelder", "Valuta", "Kurs", "Inn", "Ut")
-
-
-def _entry_import_fingerprint(entry: data.Directive) -> str | None:
-    if not isinstance(entry, data.Transaction):
-        return None
-    fingerprint = entry.meta.get(IMPORT_FINGERPRINT_META_KEY)
-    return str(fingerprint) if fingerprint else None
 
 
 @dataclass
@@ -132,37 +121,15 @@ def _parse_norwegian_number(value) -> Decimal | None:
     return Decimal(str(value))
 
 
-def _import_fingerprint(raw_txn: RawTransaction, occurrence: int) -> str:
-    """Compute a deterministic identity for a statement row.
-
-    The fingerprint is derived only from row content, so the same transaction
-    gets the same fingerprint regardless of which export file it appears in
-    (e.g. a monthly export vs. an overlapping date-range export). Identical
-    rows within one file are disambiguated with an occurrence counter, which
-    stays consistent across exports as long as the bank lists transactions in
-    a stable order.
-    """
-    parts = [
+def _fingerprint_parts(raw_txn: RawTransaction) -> tuple[str, ...]:
+    """Row-content identity parts for DNB Mastercard imports."""
+    return (
         str(raw_txn.date or ""),
         raw_txn.description or "",
         raw_txn.foreign_currency or "",
         str(raw_txn.exchange_rate or ""),
         str(raw_txn.credit or ""),
         str(raw_txn.debit or ""),
-        str(occurrence),
-    ]
-    return hashlib.sha256("\0".join(parts).encode("utf-8")).hexdigest()[:24]
-
-
-def _fingerprint_base(raw_txn: RawTransaction) -> tuple:
-    """Row-content key used to count identical rows within one file."""
-    return (
-        raw_txn.date,
-        raw_txn.description,
-        raw_txn.foreign_currency,
-        raw_txn.exchange_rate,
-        raw_txn.credit,
-        raw_txn.debit,
     )
 
 
@@ -333,8 +300,7 @@ class Importer(ClassifierMixin, beangulp.Importer):
                 print(f"No transactions found in {filepath}", file=sys.stderr)
             return []
 
-        # Occurrence counts of identical rows, backing import fingerprints
-        fingerprint_occurrences: Counter = Counter()
+        fingerprint_tracker = ImportFingerprintTracker()
 
         # Process each transaction
         for idx, raw_txn in enumerate(excel_data.transactions, 1):
@@ -397,11 +363,9 @@ class Importer(ClassifierMixin, beangulp.Importer):
                     metadata[EXCHANGE_RATE_META_KEY] = raw_txn.exchange_rate
 
                 # Add deterministic identity for re-import matching
-                base = _fingerprint_base(raw_txn)
-                metadata[IMPORT_FINGERPRINT_META_KEY] = _import_fingerprint(
-                    raw_txn, fingerprint_occurrences[base]
+                metadata[IMPORT_FINGERPRINT_META_KEY] = fingerprint_tracker.fingerprint(
+                    _fingerprint_parts(raw_txn)
                 )
-                fingerprint_occurrences[base] += 1
 
                 # Create the primary posting
                 amount_obj = Amount(D(str(amount_decimal)), self.currency)
@@ -460,8 +424,8 @@ class Importer(ClassifierMixin, beangulp.Importer):
         )
 
         def comparator(entry: data.Directive, target: data.Directive) -> bool:
-            entry_fingerprint = _entry_import_fingerprint(entry)
-            target_fingerprint = _entry_import_fingerprint(target)
+            entry_fingerprint = entry_import_fingerprint(entry)
+            target_fingerprint = entry_import_fingerprint(target)
             if entry_fingerprint and target_fingerprint:
                 return entry_fingerprint == target_fingerprint
             return heuristic_comparator(entry, target)
