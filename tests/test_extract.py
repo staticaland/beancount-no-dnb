@@ -10,12 +10,38 @@ from io import StringIO
 
 import pytest
 from beancount.core import data
+from beancount.core.amount import Amount
 from beancount.core.number import D
 from beancount.loader import load_string
 from beancount.parser import printer
 from openpyxl import Workbook
 
 from beancount_no_dnb.mastercard import DnbMastercardConfig, Importer
+
+
+def _transaction(fingerprint: str | None, amount: str = "-100.00") -> data.Transaction:
+    meta = data.new_metadata("<test>", 1)
+    if fingerprint is not None:
+        meta["import_fingerprint"] = fingerprint
+    return data.Transaction(
+        meta=meta,
+        date=datetime.date(2025, 10, 24),
+        flag="*",
+        payee=None,
+        narration="TEST MERCHANT",
+        tags=data.EMPTY_SET,
+        links=data.EMPTY_SET,
+        postings=[
+            data.Posting(
+                "Liabilities:CreditCard:DNB",
+                Amount(D(amount), "NOK"),
+                None,
+                None,
+                None,
+                None,
+            )
+        ],
+    )
 
 
 class TestExtractBasics:
@@ -353,6 +379,34 @@ class TestImportFingerprint:
         assert len(transactions) == 2
         fingerprints = {t.meta["import_fingerprint"] for t in transactions}
         assert len(fingerprints) == 2
+
+
+class TestDeduplication:
+    """Tests for import_fingerprint-based deduplication."""
+
+    def test_matching_fingerprint_marks_duplicate(self, basic_importer):
+        entries = [_transaction("same-fingerprint")]
+        existing = [_transaction("same-fingerprint")]
+
+        basic_importer.deduplicate(entries, existing)
+
+        assert "__duplicate__" in entries[0].meta
+
+    def test_different_fingerprints_prevent_fuzzy_false_positive(self, basic_importer):
+        entries = [_transaction("new-fingerprint")]
+        existing = [_transaction("existing-fingerprint")]
+
+        basic_importer.deduplicate(entries, existing)
+
+        assert "__duplicate__" not in entries[0].meta
+
+    def test_heuristic_fallback_handles_identityless_history(self, basic_importer):
+        entries = [_transaction("new-fingerprint")]
+        existing = [_transaction(None)]
+
+        basic_importer.deduplicate(entries, existing)
+
+        assert "__duplicate__" in entries[0].meta
 
 
 class TestExtractEdgeCases:

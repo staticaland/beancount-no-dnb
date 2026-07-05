@@ -44,6 +44,13 @@ BALANCE_FORWARD_DESCRIPTION = "Skyldig beløp fra forrige faktura"
 EXPECTED_HEADERS = ("Dato", "Beløpet gjelder", "Valuta", "Kurs", "Inn", "Ut")
 
 
+def _entry_import_fingerprint(entry: data.Directive) -> str | None:
+    if not isinstance(entry, data.Transaction):
+        return None
+    fingerprint = entry.meta.get(IMPORT_FINGERPRINT_META_KEY)
+    return str(fingerprint) if fingerprint else None
+
+
 @dataclass
 class DnbMastercardConfig:
     """Configuration for a DNB Mastercard Excel account.
@@ -423,8 +430,16 @@ class Importer(ClassifierMixin, beangulp.Importer):
         self, entries: list[data.Directive], existing: list[data.Directive]
     ) -> None:
         """Mark duplicate entries based on configurable parameters."""
-        comparator = similar.heuristic_comparator(
+        heuristic_comparator = similar.heuristic_comparator(
             max_date_delta=self.dedup_max_date_delta,
             epsilon=self.dedup_epsilon,
         )
+
+        def comparator(entry: data.Directive, target: data.Directive) -> bool:
+            entry_fingerprint = _entry_import_fingerprint(entry)
+            target_fingerprint = _entry_import_fingerprint(target)
+            if entry_fingerprint and target_fingerprint:
+                return entry_fingerprint == target_fingerprint
+            return heuristic_comparator(entry, target)
+
         extract.mark_duplicate_entries(entries, existing, self.dedup_window, comparator)
