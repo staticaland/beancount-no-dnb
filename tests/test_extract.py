@@ -499,8 +499,8 @@ class TestDateMethod:
         # including balance forward (2025-11-10)
         assert result == datetime.date(2025, 11, 10)
 
-    def test_returns_today_for_empty_file(self, basic_importer, tmp_path):
-        """date() returns today's date for files with no valid transactions."""
+    def test_returns_none_for_empty_file(self, basic_importer, tmp_path):
+        """date() returns None for files with no valid transactions."""
         wb = Workbook()
         ws = wb.active
         headers = ["Dato", "Beløpet gjelder", "Valuta", "Kurs", "Inn", "Ut"]
@@ -511,7 +511,7 @@ class TestDateMethod:
         wb.save(file_path)
 
         result = basic_importer.date(str(file_path))
-        assert result == datetime.date.today()
+        assert result is None
 
 
 def _excel_file(tmp_path, rows) -> str:

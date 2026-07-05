@@ -106,7 +106,7 @@ class TestFilenameMethod:
     def test_filename_includes_account_suffix(self, basic_importer, minimal_excel_file):
         """Filename includes the account name suffix."""
         result = basic_importer.filename(str(minimal_excel_file))
-        assert result == "dnb_mastercard.DNB.minimal.xlsx"
+        assert result == "dnb.DNB.minimal.xlsx"
 
     def test_filename_preserves_original_basename(self, basic_importer, tmp_path):
         """Original filename is preserved in the result."""

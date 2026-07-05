@@ -259,10 +259,10 @@ class Importer(ClassifierMixin, beangulp.Importer):
         return self.account_name
 
     def filename(self, filepath: str) -> str:
-        """Generate a descriptive filename for the imported data."""
+        """Generate a provider/account/original filename for archived data."""
         base_name = Path(filepath).name
-        account_suffix = self.account_name.split(":")[-1]
-        return f"dnb_mastercard.{account_suffix}.{base_name}"
+        account_leaf = self.account_name.split(":")[-1]
+        return f"dnb.{account_leaf}.{base_name}"
 
     def date(self, filepath: str) -> datetime.date | None:
         """Extract the latest transaction date from the file."""
@@ -275,7 +275,7 @@ class Importer(ClassifierMixin, beangulp.Importer):
         ]
 
         if not dates:
-            return datetime.date.today()
+            return None
 
         return max(dates)
 
