@@ -34,7 +34,7 @@ FOREIGN_CURRENCY_META_KEY = "foreign_currency"
 EXCHANGE_RATE_META_KEY = "exchange_rate"
 
 # Known description patterns
-PAYMENT_DESCRIPTION = "Innbetaling"
+DEFAULT_PAYMENT_PATTERNS = ("Innbetaling",)
 BALANCE_FORWARD_DESCRIPTION = "Skyldig beløp fra forrige faktura"
 
 # Expected Excel headers
@@ -59,7 +59,10 @@ class Config:
         default_split_percentage: When set (0-100), matched transactions are split between
             the matched account(s) and default_account. Requires default_account to be set.
         skip_balance_forward: When True, skip "Skyldig beløp fra forrige faktura" entries.
-        skip_payments: When True, skip "Innbetaling" entries.
+        skip_payments: When True, skip payment entries.
+        payment_patterns: Case-insensitive substrings that identify a payment
+            in the transaction description. Only used when skip_payments is
+            True. Defaults to ("Innbetaling",).
         skip_deduplication: When True, skip import_fingerprint-based deduplication.
         dedup_window_days: Days to look back for duplicates.
         dedup_max_date_delta: Max days difference for duplicate detection.
@@ -75,6 +78,7 @@ class Config:
     default_split_percentage: int | float | None = None
     skip_balance_forward: bool = True
     skip_payments: bool = False
+    payment_patterns: tuple[str, ...] = DEFAULT_PAYMENT_PATTERNS
     skip_deduplication: bool = False
     dedup_window_days: int = 3
     dedup_max_date_delta: int = 2
@@ -191,6 +195,9 @@ class Importer(ClassifierMixin, beangulp.Importer):
         )
         self.skip_balance_forward = config.skip_balance_forward
         self.skip_payments = config.skip_payments
+        self.payment_patterns = tuple(
+            pattern.upper() for pattern in config.payment_patterns
+        )
         self.skip_deduplication = config.skip_deduplication
         self.dedup_window = datetime.timedelta(days=config.dedup_window_days)
         self.dedup_max_date_delta = datetime.timedelta(days=config.dedup_max_date_delta)
@@ -325,7 +332,10 @@ class Importer(ClassifierMixin, beangulp.Importer):
                     continue
 
                 # Skip payment entries if configured
-                if self.skip_payments and description == PAYMENT_DESCRIPTION:
+                description_upper = description.upper()
+                if self.skip_payments and any(
+                    pattern in description_upper for pattern in self.payment_patterns
+                ):
                     if self.debug:
                         print(
                             f"Skipping payment entry at row {idx}",

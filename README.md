@@ -187,6 +187,7 @@ Config(
 
     # Skip "Innbetaling" (payment) entries
     skip_payments=False,  # default
+    payment_patterns=("Innbetaling",),  # default; case-insensitive substrings
 
     # Force re-import without duplicate marking
     skip_deduplication=False,  # default

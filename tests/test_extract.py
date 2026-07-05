@@ -145,6 +145,47 @@ class TestExtractSkipBehavior:
         )
         assert payment_txn is not None
 
+    def test_skip_payments_drops_default_payment_pattern(self, excel_with_all_types):
+        """With skip_payments=True, default payment entries are skipped."""
+        importer = Importer(
+            Config(account_name="Liabilities:CreditCard:DNB", skip_payments=True)
+        )
+        entries = importer.extract(str(excel_with_all_types), [])
+        transactions = [e for e in entries if isinstance(e, data.Transaction)]
+
+        assert len(transactions) == 2
+        assert all("Innbetaling" not in (t.narration or "") for t in transactions)
+
+    def test_skip_payments_matches_case_insensitively(self, excel_with_all_types):
+        """Payment pattern matching ignores case."""
+        importer = Importer(
+            Config(
+                account_name="Liabilities:CreditCard:DNB",
+                skip_payments=True,
+                payment_patterns=("innbetaling",),
+            )
+        )
+        entries = importer.extract(str(excel_with_all_types), [])
+        transactions = [e for e in entries if isinstance(e, data.Transaction)]
+
+        assert len(transactions) == 2
+        assert all(t.narration != "Innbetaling" for t in transactions)
+
+    def test_custom_payment_pattern_not_matching_keeps_payment(self, excel_with_all_types):
+        """Only configured payment patterns are skipped."""
+        importer = Importer(
+            Config(
+                account_name="Liabilities:CreditCard:DNB",
+                skip_payments=True,
+                payment_patterns=("Autogiro",),
+            )
+        )
+        entries = importer.extract(str(excel_with_all_types), [])
+        transactions = [e for e in entries if isinstance(e, data.Transaction)]
+
+        assert len(transactions) == 3
+        assert any(t.narration == "Innbetaling" for t in transactions)
+
     def test_include_all_entries(self, importer_include_all, excel_with_all_types):
         """When configured, all entries including balance forward are included."""
         entries = importer_include_all.extract(str(excel_with_all_types), [])
