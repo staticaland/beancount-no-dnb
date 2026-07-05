@@ -392,6 +392,20 @@ class TestDeduplication:
 
         assert "__duplicate__" in entries[0].meta
 
+    def test_skip_deduplication_leaves_matching_fingerprint_unmarked(self):
+        entries = [_transaction("same-fingerprint")]
+        existing = [_transaction("same-fingerprint")]
+        importer = Importer(
+            Config(
+                account_name="Liabilities:CreditCard:DNB",
+                skip_deduplication=True,
+            )
+        )
+
+        importer.deduplicate(entries, existing)
+
+        assert "__duplicate__" not in entries[0].meta
+
     def test_different_fingerprints_prevent_fuzzy_false_positive(self, basic_importer):
         entries = [_transaction("new-fingerprint")]
         existing = [_transaction("existing-fingerprint")]

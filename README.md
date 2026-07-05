@@ -177,12 +177,19 @@ Config(
     account_name="Liabilities:CreditCard:DNB",
     currency="NOK",
     transaction_patterns=[...],
+    default_account="Expenses:NeedsReview",
+
+    # Split matched transactions with the default account for review
+    default_split_percentage=None,  # default
 
     # Skip "Skyldig beløp fra forrige faktura" (balance forward) entries
     skip_balance_forward=True,  # default
 
     # Skip "Innbetaling" (payment) entries
     skip_payments=False,  # default
+
+    # Force re-import without duplicate marking
+    skip_deduplication=False,  # default
 )
 ```
 

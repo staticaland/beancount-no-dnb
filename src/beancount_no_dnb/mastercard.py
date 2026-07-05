@@ -67,8 +67,11 @@ class Config:
         default_income_account: Default account for unmatched income
             (amount > 0, e.g. refunds). Takes precedence over default_account
             for income.
+        default_split_percentage: When set (0-100), matched transactions are split between
+            the matched account(s) and default_account. Requires default_account to be set.
         skip_balance_forward: When True, skip "Skyldig beløp fra forrige faktura" entries.
         skip_payments: When True, skip "Innbetaling" entries.
+        skip_deduplication: When True, skip import_fingerprint-based deduplication.
         dedup_window_days: Days to look back for duplicates.
         dedup_max_date_delta: Max days difference for duplicate detection.
         dedup_epsilon: Tolerance for amount differences in duplicates.
@@ -83,6 +86,7 @@ class Config:
     default_split_percentage: int | float | None = None
     skip_balance_forward: bool = True
     skip_payments: bool = False
+    skip_deduplication: bool = False
     dedup_window_days: int = 3
     dedup_max_date_delta: int = 2
     dedup_epsilon: Decimal = Decimal("0.05")
@@ -220,6 +224,7 @@ class Importer(ClassifierMixin, beangulp.Importer):
         )
         self.skip_balance_forward = config.skip_balance_forward
         self.skip_payments = config.skip_payments
+        self.skip_deduplication = config.skip_deduplication
         self.dedup_window = datetime.timedelta(days=config.dedup_window_days)
         self.dedup_max_date_delta = datetime.timedelta(days=config.dedup_max_date_delta)
         self.dedup_epsilon = config.dedup_epsilon
@@ -446,6 +451,9 @@ class Importer(ClassifierMixin, beangulp.Importer):
         self, entries: list[data.Directive], existing: list[data.Directive]
     ) -> None:
         """Mark duplicate entries based on configurable parameters."""
+        if self.skip_deduplication:
+            return
+
         heuristic_comparator = similar.heuristic_comparator(
             max_date_delta=self.dedup_max_date_delta,
             epsilon=self.dedup_epsilon,
